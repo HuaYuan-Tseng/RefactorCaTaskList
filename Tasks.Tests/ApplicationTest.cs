@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using Tasks.Entity;
+using Tasks.Entity.Handler;
 
 namespace Tasks
 {
@@ -9,27 +11,48 @@ namespace Tasks
 	{
 		public const string PROMPT = "> ";
 
-		private FakeConsole console;
-		private System.Threading.Thread applicationThread;
+		private const string QUIT = "quit";
+
+		private FakeConsole _console;
+		
+		private System.Threading.Thread _applicationThread;
 
 		[SetUp]
 		public void StartTheApplication()
 		{
-			this.console = new FakeConsole();
-			var taskList = new TaskList(console);
-			this.applicationThread = new System.Threading.Thread(() => taskList.Run());
-			applicationThread.Start();
+			this._console = new FakeConsole();
+			
+			var taskList = new TaskList(new ShowHandler(
+											new AddProjectHandler(
+												new AddTaskHandler(
+													new CheckHandler(
+														new UncheckHandler(
+															new HelpHandler(
+																new ErrorHandler(null))))))));
+			
+			this._applicationThread = new System.Threading.Thread(() =>
+			{
+				while (true)
+				{
+					this._console.Write(PROMPT);
+					var command = this._console.ReadLine();
+					if (command == QUIT) break;
+					var res = taskList.Execute(command);
+					this._console.Write(res);
+				}
+			});
+			_applicationThread.Start();
 		}
 
 		[TearDown]
 		public void KillTheApplication()
 		{
-			if (applicationThread == null || !applicationThread.IsAlive)
+			if (_applicationThread == null || !_applicationThread.IsAlive)
 			{
 				return;
 			}
 
-			applicationThread.Abort();
+			_applicationThread.Abort();
 			throw new Exception("The application is still running.");
 		}
 
@@ -91,7 +114,7 @@ namespace Tasks
 		private void Read(string expectedOutput)
 		{
 			var length = expectedOutput.Length;
-			var actualOutput = console.RetrieveOutput(expectedOutput.Length);
+			var actualOutput = _console.RetrieveOutput(expectedOutput.Length);
 			Assert.AreEqual(expectedOutput, actualOutput);
 		}
 
@@ -105,7 +128,7 @@ namespace Tasks
 
 		private void Write(string input)
 		{
-			console.SendInput(input + Environment.NewLine);
+			_console.SendInput(input + Environment.NewLine);
 		}
 	}
 }
